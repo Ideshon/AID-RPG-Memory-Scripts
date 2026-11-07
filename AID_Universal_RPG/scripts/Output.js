@@ -1,4 +1,4 @@
-/* AID Universal RPG v2.31 — Output. */
+/* AID Universal RPG v2.32 — Output. */
 const modifier = (text) => {
   if(state.aidUniversalRpgRemoved){
     const notice=state.aidUniversalRpgNotice;

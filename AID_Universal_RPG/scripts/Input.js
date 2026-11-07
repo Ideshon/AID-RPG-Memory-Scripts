@@ -1,4 +1,4 @@
-/* AID Universal RPG v2.29 — Input. Install Library.js first. */
+/* AID Universal RPG v2.32 — Input. Install Library.js first. */
 const modifier = (text) => {
   // Another script owns ;mem. Pass it through unchanged; never treat it as an RPG action.
   const raw=String(text||'');

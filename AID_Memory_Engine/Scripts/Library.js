@@ -1,7 +1,7 @@
-/* AID Memory Engine v1.7.0 — Library (independent Adventure Script).
+/* AID Memory Engine v1.7.1 — Library (independent Adventure Script).
    Uses ONLY public AI Dungeon Scripting API: state, history, storyCards,
    addStoryCard, updateStoryCard, info. Does not modify state.memory. */
-const AM_ENGINE_BUILD='1.7.0';
+const AM_ENGINE_BUILD='1.7.1';
 const AM_CFG={contextChars:3200, reportChars:4800, maxChars:75, maxPlaces:85,
   maxFactions:35, maxRelations:130, maxEvents:250, maxDays:75, maxArcs:35,
   maxFacts:110, maxPlans:80, maxAutoCardsPerTurn:8};

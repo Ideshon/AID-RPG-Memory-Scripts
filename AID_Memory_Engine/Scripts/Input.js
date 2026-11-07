@@ -149,7 +149,7 @@ function amImportCommand(m,rest){
   return 'Синтаксис: ;mem import / import refresh / import preview / import plot auto / import plot essentials | Текст / import rpg card / import rpg paste | {JSON}.';
 }
 
-/* AID Memory Engine v1.7.0 — Input commands and batch templates.
+/* AID Memory Engine v1.7.1 — Input commands and batch templates.
    Library.js contains the shared engine and read-only help pages.
    Both Library.js and Input.js MUST be replaced together when upgrading from v1.4. */
 

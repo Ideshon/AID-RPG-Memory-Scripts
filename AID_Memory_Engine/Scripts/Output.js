@@ -1,4 +1,4 @@
-/* AID Memory Engine v1.7.0 — Output */
+/* AID Memory Engine v1.7.1 — Output */
 const modifier=(text)=>{
   try{if(typeof AM_ENGINE_BUILD==='undefined'||AM_ENGINE_BUILD!=='1.7.0')throw Error('Несовместимые вкладки Memory Engine: установи все четыре JS-файла v1.7.0 вместе.');return amOutput(text,amInit());}
   catch(err){
