@@ -1,4 +1,4 @@
-/* AID Universal RPG v2.32 — shared functions. Paste into Library tab. */
+/* AID Universal RPG v2.33 — shared functions. Paste into Library tab. */
 const RPG_CFG = {
   autoJudge: false,
   debug: false,
@@ -837,7 +837,7 @@ function rpgUI(r, message) {
   // Keep the player-visible input innocuous; command results replace AI output.
   r.pendingUI = String(message);
   delete state.message;
-  return '> Ты сверяешь сведения персонажа.';
+  return '> [СИСТЕМНАЯ КОМАНДА RPG ВЫПОЛНЕНА]\n';
 }
 function rpgDebugLog(r,msg){
   if(r.config.debug && typeof log==='function')log('[RPG DEBUG] '+String(msg).slice(0,650));
@@ -2084,7 +2084,7 @@ function rpgAidmSnapshot(r){
   const hero=r.character||{};
   const name=rpgAidmText(hero.name,81);
   if(Array.from(name).length<2||Array.from(name).length>80)
-    return {error:'Нужно задать настоящее имя персонажа длиной 2–80 символов. Используй :char create / :char name / :char done либо :setup.'};
+    return {error:'Нужно задать настоящее имя персонажа длиной 2–80 символов. В текущем сохранении RPG имя отсутствует; проверь :status. Если сохранение новое, найди прежний экземпляр Adventure Script: экспортная карточка не содержит полного сохранения. Для нового героя используй :char create / :char name / :char done либо :setup.'};
   const doc={source:'Universal RPG',version:1,hero:{name}};
   const calendar=rpgCalendar(r);
   doc.calendar={year:calendar.year,month:calendar.month,day:calendar.day,time:rpgAidmClock(r)};

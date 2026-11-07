@@ -110,11 +110,15 @@ function amRpgCardImport(m){
 function amRpgNotesImport(m){
   const snap=m.rpgSnapshot;if(!snap)return 'Сначала импортируй снимок: ;mem import rpg card.';
   const notes=amArr(snap.notes).filter(x=>typeof x==='string'&&x.trim());let added=0;
-  for(const note of notes)if(amFact(m,'Заметка RPG',note,'rpg-import'))added++;
+  for(const note of notes){
+    if(m.facts.some(f=>amKey(f.rpgOriginalText)===amKey(note)))continue;
+    if(amFact(m,'Заметка RPG',note,'rpg-import'))added++;
+  }
   if(added)m.undo=null;
   return added?'Перенесено заметок в факты Memory Engine: '+added+'. Повторный импорт не создаёт дубликаты.':'Новых заметок для переноса нет.';
 }
 function amRpgCalendarSync(m){
+  if(!m.config.calendar)return 'Календарь Memory Engine выключен. Для синхронизации включи ;mem date on.';
   const snap=m.rpgSnapshot;if(!snap)return 'Сначала импортируй снимок RPG: ;mem import rpg card.';
   let changed=false;
   if(amDate(snap.date)&&m.date!==snap.date){m.date=snap.date;changed=true;}
@@ -149,7 +153,7 @@ function amImportCommand(m,rest){
   return 'Синтаксис: ;mem import / import refresh / import preview / import plot auto / import plot essentials | Текст / import rpg card / import rpg paste | {JSON}.';
 }
 
-/* AID Memory Engine v1.7.1 — Input commands and batch templates.
+/* AID Memory Engine v1.7.4 — Input commands and batch templates.
    Library.js contains the shared engine and read-only help pages.
    Both Library.js and Input.js MUST be replaced together when upgrading from v1.4. */
 
@@ -235,7 +239,7 @@ function amTransferCommand(m,rest){
       'Сначала удали их через ;mem reset cards confirm (может потребоваться несколько вызовов), затем повтори transfer apply. База не изменена.';
     const d=doc.data;
     // Build destination first, then commit. No partial overwrites on invalid input.
-    const fresh=amBlankState();fresh.config={...fresh.config,auto:m.config.auto,cards:m.config.cards};
+    const fresh=amBlankState();fresh.config={...fresh.config,auto:m.config.auto,cards:m.config.cards,calendar:m.config.calendar};
     const fields=doc.scope==='world'?['world','places','factions','facts','plotImports','provenance']:
       ['world','date','time','place','characters','places','factions','relations','facts','events','days','months','arcs','plans','nextId','plotImports','provenance','reviewHistory','reviewSeen','reviewNextId'];
     for(const key of fields)if(d[key]!==undefined)fresh[key]=d[key];
@@ -639,11 +643,11 @@ function amResetCommand(m,raw){
 function amHelp(subject){
   const raw=amKey(subject||'');
   if(['transfer','перенос','экспорт памяти','копирование памяти'].includes(raw))return amTransferCommand(amInit(),'help');
-  if(['review','проверка памяти','подтверждение','очередь','наблюдения','accept','reject'].includes(raw))return 'AID Memory v1.7.0 — ПРОВЕРКА АВТОПАМЯТИ\nПосле сцены рассказчик предлагает записи; до подтверждения они не изменяют биографии, отношения и Story Cards.\n;mem review — вся очередь; ;mem review ID — текст и источник.\n;mem accept ID — подтвердить предложение; ;mem accept ID replace — явно заменить вручную введённое поле.\n;mem edit ID | новое значение — исправить предложение, затем ;mem accept ID.\n;mem reject ID — отклонить; ;mem review log — журнал решений.\n;mem sources char Имя — источник текущих полей.\nНепроверенные наблюдения записываются как факты ТОЛЬКО после ;mem accept ID.\nАвтоматический отчёт не перезаписывает ручные данные. Старые записи без происхождения считаются защищёнными.';
+  if(['review','проверка памяти','подтверждение','очередь','наблюдения','accept','reject'].includes(raw))return 'AID Memory v1.7.4 — ПРОВЕРКА АВТОПАМЯТИ\nПосле сцены рассказчик предлагает записи; до подтверждения они не изменяют биографии, отношения и Story Cards.\n;mem review — вся очередь; ;mem review ID — текст и источник.\n;mem accept ID — подтвердить предложение; ;mem accept ID replace — явно заменить вручную введённое поле.\n;mem edit ID | новое значение — исправить предложение, затем ;mem accept ID.\n;mem reject ID — отклонить; ;mem review log — журнал решений.\n;mem sources char Имя — источник текущих полей.\nНепроверенные наблюдения записываются как факты ТОЛЬКО после ;mem accept ID.\nАвтоматический отчёт не перезаписывает ручные данные. Старые записи без происхождения считаются защищёнными.';
 
   const topic=Object.prototype.hasOwnProperty.call(AM_HELP_ALIASES,raw)?AM_HELP_ALIASES[raw]:raw;
-  if(topic==='all')return 'AID Memory v1.7.0 — СПРАВКА\nОБЩИЙ УКАЗАТЕЛЬ\n;mem review / review ID / review log — очередь, источник и решения.\n;mem accept ID [replace], ;mem edit ID | значение, ;mem reject ID — управление предложениями.\n;mem sources char Имя — происхождение подтверждённых полей.\n;mem transfer help — перенос памяти между приключениями.\n'+AM_HELP_PAGES.all;
-  if(topic==='index')return 'AID Memory v1.7.0 — РАЗДЕЛЫ СПРАВКИ\n'+
+  if(topic==='all')return 'AID Memory v1.7.4 — СПРАВКА\nОБЩИЙ УКАЗАТЕЛЬ\n;mem review / review ID / review log — очередь, источник и решения.\n;mem accept ID [replace], ;mem edit ID | значение, ;mem reject ID — управление предложениями.\n;mem sources char Имя — происхождение подтверждённых полей.\n;mem transfer help — перенос памяти между приключениями.\n'+AM_HELP_PAGES.all;
+  if(topic==='index')return 'AID Memory v1.7.4 — РАЗДЕЛЫ СПРАВКИ\n'+
     'Первые шаги: ;mem ping, ;mem status, ;mem help start, ;mem help syntax, ;mem help all\n'+
     'Мир: ;mem help world, ;mem help place, ;mem help faction\n'+
     'Персонажи: ;mem help char, ;mem help skill, ;mem help rel\n'+
@@ -652,7 +656,7 @@ function amHelp(subject){
     'Управление: ;mem help edit, ;mem help undo, ;mem help reset, ;mem help debug, ;mem help transfer\n'+
     'По-русски: ;mem help персонажи, ;mem help карта, ;mem help отношения, ;mem help календарь, ;mem help пакет.\n'+
     'Укажи тему после help, чтобы получить синтаксис, примеры и ограничения.';
-  if(Object.prototype.hasOwnProperty.call(AM_HELP_PAGES,topic))return 'AID Memory v1.7.0 — СПРАВКА\n'+AM_HELP_PAGES[topic];
+  if(Object.prototype.hasOwnProperty.call(AM_HELP_PAGES,topic))return 'AID Memory v1.7.4 — СПРАВКА\n'+AM_HELP_PAGES[topic];
   return 'Неизвестный раздел справки «'+amStr(subject,70)+'».\n'+
     'Введи ;mem help для списка тем или ;mem help all для указателя команд.';
 }
@@ -707,10 +711,26 @@ function amCommand(m,raw){
     if(!a||a==='status')return 'AID Memory debug: '+(m.config.debug?(m.config.debugFull?'full':'on'):'off')+'; последняя запись '+(m.debugTrace?'есть':'нет')+'.\n;mem debug on / full / off; ;mem debug last / context.';
     return 'Формат: ;mem debug on / full / off / status / last / context.';
   }
-  if(verb==='status')return 'AID Memory v1.7.0: '+(m.config.auto?'извлечение включено':'извлечение выключено')+'; Story Cards '+(m.config.cards?'включены':'выключены')+'.\nИгровая дата: '+(m.date||'?')+' '+(m.time||'')+'; место: '+(m.place||'?')+'.\nПерсонажи '+Object.keys(m.characters).length+', места '+Object.keys(m.places).length+', фракции '+Object.keys(m.factions).length+', связи '+Object.keys(m.relations).length+', события '+m.events.length+', дни '+Object.keys(m.days).length+', арки '+Object.keys(m.arcs).length+', планы '+m.plans.length+'.\nАвтопакеты: '+m.accepted+'; без распознанного маркера: '+m.misses+'; ошибки карт: '+m.cardErrors+'; отклонённые связи родителей: '+m.validationErrors+'; источники Plot: '+Object.keys(m.plotImports||{}).length+'; снимок RPG: '+(m.rpgSnapshot?'да':'нет')+'.\nПредложения для проверки: '+m.reviewQueue.filter(x=>x.tier==='proposed').length+'; наблюдения: '+m.reviewQueue.filter(x=>x.tier==='observation').length+'.';
-  if(verb==='ping')return 'AID Memory v1.7.0: Library и Input работают; сохранено персонажей '+Object.keys(m.characters).length+', мест '+Object.keys(m.places).length+'.';
+  if(verb==='status')return 'AID Memory v1.7.4: '+(m.config.auto?'извлечение включено':'извлечение выключено')+'; Story Cards '+(m.config.cards?'включены':'выключены')+'.\nКалендарь: '+(m.config.calendar?'on':'off')+'; игровая дата: '+(m.config.calendar?(m.date||'?')+' '+(m.time||''):'отключена')+'; место: '+(m.place||'?')+'.\nПерсонажи '+Object.keys(m.characters).length+', места '+Object.keys(m.places).length+', фракции '+Object.keys(m.factions).length+', связи '+Object.keys(m.relations).length+', события '+m.events.length+', дни '+Object.keys(m.days).length+', арки '+Object.keys(m.arcs).length+', планы '+m.plans.length+'.\nАвтопакеты: '+m.accepted+'; без распознанного маркера: '+m.misses+'; ошибки карт: '+m.cardErrors+'; отклонённые связи родителей: '+m.validationErrors+'; источники Plot: '+Object.keys(m.plotImports||{}).length+'; снимок RPG: '+(m.rpgSnapshot?'да':'нет')+'.\nПредложения для проверки: '+m.reviewQueue.filter(x=>x.tier==='proposed').length+'; наблюдения: '+m.reviewQueue.filter(x=>x.tier==='observation').length+'.';
+  if(verb==='ping')return 'AID Memory v1.7.4: Library и Input работают; сохранено персонажей '+Object.keys(m.characters).length+', мест '+Object.keys(m.places).length+'.';
   if(verb==='validate')return 'ПРОВЕРКА КАРТЫ\n'+(amPlaceIssues(m).join('\n')||'Ошибок вложенности не найдено.');
   if(verb==='auto'||verb==='cards'){rest=rest.replace(/[.!?]+$/,'');if(!/^(on|off)$/i.test(rest))return 'Формат: ;mem '+verb+' on/off';m.config[verb==='auto'?'auto':'cards']=rest==='on';return 'Режим '+verb+': '+rest;}
+  if(verb==='edit'&&/^fact(?:\s|$)/i.test(rest)){
+    const match=/^fact\s+([1-9]\d*)\s*\|\s*([\s\S]+)$/i.exec(rest);
+    if(!match)return 'Формат: ;mem edit fact ID | Новый текст или ;mem edit fact ID | Новая тема | Новый текст.';
+    const fact=m.facts.find(x=>x.id===Number(match[1]));
+    if(!fact)return 'Факт #'+match[1]+' не найден. Проверь ;mem list fact.';
+    if(fact.sourceCardId)return 'Факт #'+fact.id+' связан с импортированной Story Card. Измени исходную карточку и выполни ;mem import refresh.';
+    const parts=amParts(match[2]);
+    if(parts.length>2)return 'Формат: ;mem edit fact ID | Новый текст или ;mem edit fact ID | Новая тема | Новый текст.';
+    const about=parts.length===2?parts[0]:fact.about,text=parts.length===2?parts[1]:parts[0];
+    if(about.length<2||about.length>85||text.length<8||text.length>380)return 'Тема: 2–85 символов; текст факта: 8–380 символов. Ничего не изменено.';
+    if(m.facts.some(x=>x.id!==fact.id&&amKey(x.about)===amKey(about)&&amKey(x.text)===amKey(text)))return 'Такой факт уже существует. Ничего не изменено.';
+    if(fact.about===about&&fact.text===text)return 'Факт #'+fact.id+' уже содержит этот текст.';
+    if(fact.source==='rpg-import'&&!fact.rpgOriginalText)fact.rpgOriginalText=fact.text;
+    fact.about=amStr(about,85);fact.text=amStr(text,380);fact.source='user';m.undo=null;
+    return 'Факт #'+fact.id+' изменён: '+fact.about+' — '+fact.text;
+  }
   if(['review','accept','edit','reject'].includes(verb))return amReviewCommand(m,verb,rest);
   if(verb==='sources')return amReviewProvenance(m,rest);
   if(verb==='reset')return amResetCommand(m,rest);
@@ -745,9 +765,11 @@ function amCommand(m,raw){
   }
   if(verb==='world'){if(!rest)return m.world||'Описание мира не задано.';m.world=amStr(rest,1700);m.undo=null;return 'Мир обновлён: '+m.world;}
   if(verb==='date'){
-    rest=rest.replace(/[.!?]+$/,'');const p=rest.split(/\s+/);if(!amDate(p[0]))return 'Формат: ;mem date 2016-01-02 09:06';
+    rest=rest.replace(/[.!?]+$/,'');
+    if(/^(on|off)$/i.test(rest)){m.config.calendar=rest.toLowerCase()==='on';return 'Календарь Memory Engine: '+(m.config.calendar?'включён':'выключен')+'. Сохранённые даты не удалены.';}
+    const p=rest.split(/\s+/);if(!amDate(p[0]))return 'Формат: ;mem date YYYY-MM-DD [HH:MM] / ;mem date on / ;mem date off';
     if(p.length>2||p[1]&&!amTime(p[1]))return 'Время HH:MM некорректно.';
-    m.date=p[0];if(p[1])m.time=p[1];m.undo=null;return 'Игровая дата: '+m.date+' '+m.time;}
+    m.date=p[0];if(p[1])m.time=p[1];m.undo=null;return 'Игровая дата: '+m.date+' '+m.time+(m.config.calendar?'':' (календарь выключен; дата не передаётся рассказчику)');}
   if(verb==='here'){if(!rest)return m.place||'Место не задано.';m.place=amStr(rest,90);m.undo=null;return 'Текущее место: '+m.place;}
   if(verb==='char'||verb==='place'||verb==='faction'||verb==='arc'){
     const p=amParts(rest);let name=amStr(p.shift(),85);if(!name)return 'Укажи название после ;mem '+verb;
@@ -823,8 +845,8 @@ function amCommand(m,raw){
 // hook is skipped by another Script or AI Dungeon, a diagnostic is still shown.
 const modifier=(text)=>{
   try{
-    if(typeof AM_ENGINE_BUILD==='undefined'||AM_ENGINE_BUILD!=='1.7.0'){
-      const reason='Несовместимые вкладки Memory Engine: замени все четыре JS-файла из v1.7.0.';
+    if(typeof AM_ENGINE_BUILD==='undefined'||AM_ENGINE_BUILD!=='1.7.4'){
+      const reason='Несовместимые вкладки Memory Engine: замени все четыре JS-файла из v1.7.4.';
       if(state&&state.aidm&&typeof state.aidm==='object')state.aidm.pendingUI=reason;
       state.message='[AID Memory] '+reason;
       return {text:'[AID Memory: '+reason+']'};
@@ -866,7 +888,7 @@ const modifier=(text)=>{
   }catch(err){
     const detail=String(err&&err.message||err).slice(0,300);
     if(typeof console!=='undefined'&&console.log)console.log('AID Memory Input: '+detail);
-    if(state&&state.aidm)state.aidm.pendingUI='[AID Memory v1.7.0] Ошибка Input: '+detail;
+    if(state&&state.aidm)state.aidm.pendingUI='[AID Memory v1.7.4] Ошибка Input: '+detail;
     state.message='[AID Memory Input ERROR] '+detail;
     return {text:'[AID Memory: ошибка команды; не развивай сюжет.]'};
   }

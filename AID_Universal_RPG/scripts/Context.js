@@ -1,4 +1,4 @@
-/* AID Universal RPG v2.32 — Context: invisible rules + computed judge result. */
+/* AID Universal RPG v2.33 — Context: invisible rules + computed judge result. */
 const modifier = (text) => {
   if(state.aidUniversalRpgRemoved)return {text:String(text||'')};
   const r=rpgInit();
