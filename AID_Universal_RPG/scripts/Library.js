@@ -285,6 +285,7 @@ function rpgJournalList(r,arg){
   return 'ЖУРНАЛ ('+selected.length+'/'+r.journal.length+', показано '+shown.length+')\n'+(shown.map(x=>'#'+x.id+' ['+x.type+']'+(x.pinned?' [ВАЖНО]':'')+' '+x.text).join('\n')||'Нет записей.')+'\n:help note — редактирование, поиск, закрепление.';
 }
 function rpgJournalCommand(r,cmd,arg){
+  return 'Сюжетные заметки ведутся в AID Memory Engine: используй ;mem fact Тема | Факт или ;mem event Описание. Старый журнал RPG можно перенести: :aidm export, затем ;mem import rpg card и ;mem import rpg notes.';
   const v=String(arg||'').trim();
   if(cmd==='notes')return rpgJournalList(r,v);
   if(!v)return rpgJournalList(r,'');
@@ -771,7 +772,6 @@ function rpgMemory(r) {
     'Дополнительные навыки: '+(Object.keys(r.customSkills).map(k=>k+' — '+r.customSkills[k].attr+'; фразы '+(r.customSkills[k].keywords.join(', ')||'не заданы')).join(' | ')||'нет')+'.\n'+
     'Временные модификаторы бросков d20 (не меняют характеристики и уровни): '+((r.modifiers||[]).filter(x=>x.expiresAt>rpgAbsoluteMinute(r)).map(x=>x.reason+' '+(x.delta>0?'+':'')+x.delta+' к d20 ['+rpgModifierTargets(x).join(',')+'] до '+x.expiresAt+' мин.').join('; ')||'нет')+'.\n'+
     'Магия в мире: '+(r.config.magic?'может существовать, но не доступна автоматически':'не вводи магию, пока игрок не включит её')+'.\n';
-  const notes=rpgJournalContext(r);if(notes)str+='Записи журнала (подтверждённые факты): '+notes+'.\n';
   const quests=rpgQuestContext(r);if(quests)str+='Активные задания (не объявлять выполненными без проверки): '+quests+'.\n';
   if(r.recent.length)str+='Недавние фрагменты истории (не являются полной хроникой): '+r.recent.slice(-RPG_CFG.briefMemory).join(' | ').slice(-500)+'.\n';
   if(r.pendingRoll)str+='РЕЗУЛЬТАТ УЖЕ ВЫЧИСЛЕН, НЕ ПЕРЕБРАСЫВАТЬ: '+rpgRollLabel(r.pendingRoll)+'.\n';
@@ -3119,13 +3119,6 @@ function rpgApplyDelta(r, payload) {
       if(next<0 || (next>0&&!old&&Object.keys(r.items).length>=RPG_CFG.maxItems))return;
       if(next===0)delete r.items[key];else r.items[key]=next;
       changes.push(key+' '+old+'→'+next);
-    });
-  }
-  if(Array.isArray(payload.notes)) {
-    payload.notes.slice(0,2).forEach(note=>{
-      if(typeof note!=='string'||!note.trim())return;
-      rpgJournalAdd(r,'событие',note,false);
-      changes.push('событие сохранено');
     });
   }
   return changes;
