@@ -1,4 +1,4 @@
-/* AID Universal RPG v2.31 — shared functions. Paste into Library tab. */
+/* AID Universal RPG v2.33 — shared functions. Paste into Library tab. */
 const RPG_CFG = {
   autoJudge: false,
   debug: false,
@@ -285,6 +285,7 @@ function rpgJournalList(r,arg){
   return 'ЖУРНАЛ ('+selected.length+'/'+r.journal.length+', показано '+shown.length+')\n'+(shown.map(x=>'#'+x.id+' ['+x.type+']'+(x.pinned?' [ВАЖНО]':'')+' '+x.text).join('\n')||'Нет записей.')+'\n:help note — редактирование, поиск, закрепление.';
 }
 function rpgJournalCommand(r,cmd,arg){
+  return 'Сюжетные заметки ведутся в AID Memory Engine: используй ;mem fact Тема | Факт или ;mem event Описание. Старый журнал RPG можно перенести: :aidm export, затем ;mem import rpg card и ;mem import rpg notes.';
   const v=String(arg||'').trim();
   if(cmd==='notes')return rpgJournalList(r,v);
   if(!v)return rpgJournalList(r,'');
@@ -771,7 +772,6 @@ function rpgMemory(r) {
     'Дополнительные навыки: '+(Object.keys(r.customSkills).map(k=>k+' — '+r.customSkills[k].attr+'; фразы '+(r.customSkills[k].keywords.join(', ')||'не заданы')).join(' | ')||'нет')+'.\n'+
     'Временные модификаторы бросков d20 (не меняют характеристики и уровни): '+((r.modifiers||[]).filter(x=>x.expiresAt>rpgAbsoluteMinute(r)).map(x=>x.reason+' '+(x.delta>0?'+':'')+x.delta+' к d20 ['+rpgModifierTargets(x).join(',')+'] до '+x.expiresAt+' мин.').join('; ')||'нет')+'.\n'+
     'Магия в мире: '+(r.config.magic?'может существовать, но не доступна автоматически':'не вводи магию, пока игрок не включит её')+'.\n';
-  const notes=rpgJournalContext(r);if(notes)str+='Записи журнала (подтверждённые факты): '+notes+'.\n';
   const quests=rpgQuestContext(r);if(quests)str+='Активные задания (не объявлять выполненными без проверки): '+quests+'.\n';
   if(r.recent.length)str+='Недавние фрагменты истории (не являются полной хроникой): '+r.recent.slice(-RPG_CFG.briefMemory).join(' | ').slice(-500)+'.\n';
   if(r.pendingRoll)str+='РЕЗУЛЬТАТ УЖЕ ВЫЧИСЛЕН, НЕ ПЕРЕБРАСЫВАТЬ: '+rpgRollLabel(r.pendingRoll)+'.\n';
@@ -837,7 +837,7 @@ function rpgUI(r, message) {
   // Keep the player-visible input innocuous; command results replace AI output.
   r.pendingUI = String(message);
   delete state.message;
-  return '> Ты сверяешь сведения персонажа.';
+  return '> [СИСТЕМНАЯ КОМАНДА RPG ВЫПОЛНЕНА]\n';
 }
 function rpgDebugLog(r,msg){
   if(r.config.debug && typeof log==='function')log('[RPG DEBUG] '+String(msg).slice(0,650));
@@ -1410,8 +1410,8 @@ function rpgHelp(r,topic){
     date:'КАЛЕНДАРЬ (УНИВЕРСАЛЬНЫЙ)\n12 месяцев в году, по 30 дней, без реальных дат и названий месяцев.\n:date show — текущая дата и время\n:date set 2 4 15 — год 2, месяц 4, день 15; часы сохраняются\n:date set 2 4 15 09:30 — одновременно дата и часы\n:date advance 3 — продвинуть 3 дня вперёд с учётом потребностей (1–30)\n:time set 16:45 — установить время суток без перерасчёта потребностей\n:time 45 — продвинуть 45 минут с учётом потребностей. Возврат назад только через set.',
     rest:':rest 60 — отдых 60 минут; :rest 240 — длительный отдых/сон. Восстанавливает выносливость и снижает усталость.',
     place:':place Улица у рынка — сохранить локацию персонажа; :status — посмотреть.',
-    note:'ЖУРНАЛ ПАМЯТИ (до 100 записей по 400 символов)\n:note текст — быстрый факт\n:note add npc | Охранник запомнил героиню — категория\n:notes — последние 20; :notes all — до 50; :notes npc; :notes pinned — фильтры\n:note search охранник — поиск по тексту\n:note edit 3 | Исправленный факт — редактировать #3\n:note remove 3 — удалить запись #3\n:note pin 3 / :note unpin 3 — закрепить/открепить\n:note clear confirm — очистить весь журнал (необратимо).\nКатегории: факт, npc, событие, обещание, место, квест, мир. Закреплённые заметки приоритетны в контексте.',
-    notes:':notes — список записей; :notes all, :notes pinned, :notes npc и другие категории.\n:help note — все операции журнала.',
+    note:'Сюжетные заметки теперь ведутся в AID Memory Engine: ;mem fact Тема | Факт или ;mem event Описание. Перенос старого RPG-журнала: :aidm export, затем ;mem import rpg card и ;mem import rpg notes.',
+    notes:':note и :notes больше не управляют сюжетной памятью. Используй ;mem fact / ;mem event в AID Memory Engine. Старый журнал можно перенести через :aidm export и ;mem import rpg notes.',
     quest:'ЗАДАНИЯ (ДЕЙСТВУЮТ ПОСЛЕ ПОДТВЕРЖДЕНИЯ ИГРОКОМ)\n:quest add Найти работу | Прийти в агентство — создать задание\n:quest list [active/done/failed/cancelled/all] — список\n:quest info 1 — полная запись\n:quest due 1 | 2 4 15 18:00 — срок по игровому календарю; :quest due 1 clear — убрать\n:quest status 1 done — завершить, также failed/cancelled/active\n:quest edit 1 | Новое название | Новое описание — изменить\n:quest remove 1 confirm — удалить.\nСкрипт НЕ определяет автоматически завершение задания по тексту модели; явные статусы надёжнее.',
     roll:':roll 6 — бросить d6; допустимые грани 2–1000.\n:check — проверка навыка d20.',
     give:':give фонарик 2 — добавить 2 предмета в инвентарь. Максимум 50 разных названий.',
@@ -2084,8 +2084,10 @@ function rpgAidmSnapshot(r){
   const hero=r.character||{};
   const name=rpgAidmText(hero.name,81);
   if(Array.from(name).length<2||Array.from(name).length>80)
-    return {error:'Нужно задать настоящее имя персонажа длиной 2–80 символов. Используй :char create / :char name / :char done либо :setup.'};
+    return {error:'Нужно задать настоящее имя персонажа длиной 2–80 символов. В текущем сохранении RPG имя отсутствует; проверь :status. Если сохранение новое, найди прежний экземпляр Adventure Script: экспортная карточка не содержит полного сохранения. Для нового героя используй :char create / :char name / :char done либо :setup.'};
   const doc={source:'Universal RPG',version:1,hero:{name}};
+  const calendar=rpgCalendar(r);
+  doc.calendar={year:calendar.year,month:calendar.month,day:calendar.day,time:rpgAidmClock(r)};
   for(const [out,key,max] of [
     ['race','race',90],['class','class',90],['bio','background',650],
     ['appearance','appearance',220],['occupation','occupation',120]]){
@@ -3117,13 +3119,6 @@ function rpgApplyDelta(r, payload) {
       if(next<0 || (next>0&&!old&&Object.keys(r.items).length>=RPG_CFG.maxItems))return;
       if(next===0)delete r.items[key];else r.items[key]=next;
       changes.push(key+' '+old+'→'+next);
-    });
-  }
-  if(Array.isArray(payload.notes)) {
-    payload.notes.slice(0,2).forEach(note=>{
-      if(typeof note!=='string'||!note.trim())return;
-      rpgJournalAdd(r,'событие',note,false);
-      changes.push('событие сохранено');
     });
   }
   return changes;

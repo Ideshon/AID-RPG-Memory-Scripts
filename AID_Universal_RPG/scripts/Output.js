@@ -1,4 +1,4 @@
-/* AID Universal RPG v2.31 — Output. */
+/* AID Universal RPG v2.33 — Output. */
 const modifier = (text) => {
   if(state.aidUniversalRpgRemoved){
     const notice=state.aidUniversalRpgNotice;
@@ -13,7 +13,7 @@ const modifier = (text) => {
     r.pendingUI=null;
     if(!preview){r.pendingRoll=null;r.pendingSecondaryRoll=null;}
     const notices=preview?'':(r.modifierNotices||[]).splice(0).join('\n');
-    return {text:(/^\[RPG(?: DEBUG)?\]/.test(msg)?msg:'[RPG] '+msg)+(notices?'\n'+notices:'')};
+    return {text:'\n'+(/^\[RPG(?: DEBUG)?\]/.test(msg)?msg:'[RPG] '+msg)+(notices?'\n'+notices:'')};
   }
   let cleanOutput=String(text||'');
   if(r.pendingSmart && r.config.autoJudge && r.config.smartJudge){
