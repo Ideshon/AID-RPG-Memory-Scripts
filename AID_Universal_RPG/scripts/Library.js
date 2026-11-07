@@ -2086,6 +2086,8 @@ function rpgAidmSnapshot(r){
   if(Array.from(name).length<2||Array.from(name).length>80)
     return {error:'Нужно задать настоящее имя персонажа длиной 2–80 символов. Используй :char create / :char name / :char done либо :setup.'};
   const doc={source:'Universal RPG',version:1,hero:{name}};
+  const calendar=rpgCalendar(r);
+  doc.calendar={year:calendar.year,month:calendar.month,day:calendar.day,time:rpgAidmClock(r)};
   for(const [out,key,max] of [
     ['race','race',90],['class','class',90],['bio','background',650],
     ['appearance','appearance',220],['occupation','occupation',120]]){

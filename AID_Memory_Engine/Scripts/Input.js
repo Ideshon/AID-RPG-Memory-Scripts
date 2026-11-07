@@ -80,6 +80,12 @@ function amRpgPayload(m,payload,source){
     stats:cleanMap(x.stats,25),skills:cleanMap(x.skills,50),
     inventory:amArr(x.inventory).slice(0,60).map(q=>amStr(q,90)),
     notes:amArr(x.notes).slice(0,15).map(q=>amStr(q,220)),sourceLabel:source};
+  const calendar=amObj(x.calendar);
+  if(Number.isInteger(calendar.year)&&calendar.year>0&&calendar.year<=9999&&
+     Number.isInteger(calendar.month)&&calendar.month>=1&&calendar.month<=12&&
+     Number.isInteger(calendar.day)&&calendar.day>=1&&calendar.day<=30){
+    snap.calendar={year:calendar.year,month:calendar.month,day:calendar.day,time:amTime(calendar.time)};
+  }
   if(JSON.stringify(m.rpgSnapshot)===JSON.stringify(snap))return 'Снимок Universal RPG уже сохранён, изменений нет.';
   if(!m.characters[amKey(snap.hero.name)]&&Object.keys(m.characters).length>=AM_CFG.maxChars)return 'Лимит персонажей: снимок RPG не импортирован.';
   // Do not overwrite the character's manually managed identity or mechanical values.
@@ -101,6 +107,13 @@ function amRpgCardImport(m){
   try{return amRpgPayload(m,JSON.parse(body),'storycard:'+String(c.id));}
   catch(e){return 'Ошибка JSON в Story Card Universal RPG: '+amStr(e.message,160);}
 }
+function amRpgNotesImport(m){
+  const snap=m.rpgSnapshot;if(!snap)return 'Сначала импортируй снимок: ;mem import rpg card.';
+  const notes=amArr(snap.notes).filter(x=>typeof x==='string'&&x.trim());let added=0;
+  for(const note of notes)if(amFact(m,'Заметка RPG',note,'rpg-import'))added++;
+  if(added)m.undo=null;
+  return added?'Перенесено заметок в факты Memory Engine: '+added+'. Повторный импорт не создаёт дубликаты.':'Новых заметок для переноса нет.';
+}
 function amImportCommand(m,rest){
   const s=String(rest||'').trim();
   // AI Dungeon Do may append a sentence period to a standalone command.
@@ -117,6 +130,7 @@ function amImportCommand(m,rest){
   if(plot)return amPlotStore(m,plot[1],plot[2],'paste');
   if(/^rpg\s*$/i.test(route))return 'Universal RPG изолирован. Варианты: ;mem import rpg card (служебная Story Card с [AID_RPG_EXPORT:1]); ;mem import rpg paste | {JSON}. Документ схемы — Obsidian «совместимость с RPG». Без экспорта RPG читать его state нельзя.';
   if(/^rpg\s+card$/i.test(route))return amRpgCardImport(m);
+  if(/^rpg\s+notes$/i.test(route))return amRpgNotesImport(m);
   if(/^rpg\s+status$/i.test(route)){const r=m.rpgSnapshot;return r?'Снимок RPG: '+r.hero.name+'; вид '+(r.hero.race||'?')+'; класс '+(r.hero.class||'?')+'; место '+(r.location||'?')+'; дата '+(r.date||'?')+' '+(r.time||'')+'\nХарактеристики: '+JSON.stringify(r.stats)+'\nНавыки: '+JSON.stringify(r.skills)+'\nИнвентарь: '+r.inventory.join(', ')+'\nЗаметки: '+r.notes.join('; '):'Снимок Universal RPG ещё не импортирован.';}
   const rpg=/^rpg\s+paste\s*\|\s*([\s\S]+)$/i.exec(s);
   if(rpg){if(rpg[1].length>5000)return 'Слишком длинный RPG JSON (максимум 5000 символов).';
