@@ -114,6 +114,16 @@ function amRpgNotesImport(m){
   if(added)m.undo=null;
   return added?'Перенесено заметок в факты Memory Engine: '+added+'. Повторный импорт не создаёт дубликаты.':'Новых заметок для переноса нет.';
 }
+function amRpgCalendarSync(m){
+  const snap=m.rpgSnapshot;if(!snap)return 'Сначала импортируй снимок RPG: ;mem import rpg card.';
+  let changed=false;
+  if(amDate(snap.date)&&m.date!==snap.date){m.date=snap.date;changed=true;}
+  if(amTime(snap.time)&&m.time!==snap.time){m.time=snap.time;changed=true;}
+  if(changed)m.undo=null;
+  const rpgDate=snap.calendar?('год '+snap.calendar.year+', месяц '+snap.calendar.month+', день '+snap.calendar.day):'игровая дата не передана';
+  if(!amDate(snap.date))return 'Часы RPG: '+(amTime(snap.time)||'не переданы')+'. '+rpgDate+'. Дата летописи Memory Engine не изменена: эту дату RPG нельзя представить как григорианскую YYYY-MM-DD.';
+  return changed?'Календарь Memory Engine обновлён по снимку RPG: '+snap.date+' '+(snap.time||'')+'. RPG-календарь: '+rpgDate+'.':'Календарь уже совпадает со снимком RPG: '+snap.date+' '+(snap.time||'')+'.';
+}
 function amImportCommand(m,rest){
   const s=String(rest||'').trim();
   // AI Dungeon Do may append a sentence period to a standalone command.
@@ -130,6 +140,7 @@ function amImportCommand(m,rest){
   if(plot)return amPlotStore(m,plot[1],plot[2],'paste');
   if(/^rpg\s*$/i.test(route))return 'Universal RPG изолирован. Варианты: ;mem import rpg card (служебная Story Card с [AID_RPG_EXPORT:1]); ;mem import rpg paste | {JSON}. Документ схемы — Obsidian «совместимость с RPG». Без экспорта RPG читать его state нельзя.';
   if(/^rpg\s+card$/i.test(route))return amRpgCardImport(m);
+  if(/^rpg\s+calendar$/i.test(route))return amRpgCalendarSync(m);
   if(/^rpg\s+notes$/i.test(route))return amRpgNotesImport(m);
   if(/^rpg\s+status$/i.test(route)){const r=m.rpgSnapshot;return r?'Снимок RPG: '+r.hero.name+'; вид '+(r.hero.race||'?')+'; класс '+(r.hero.class||'?')+'; место '+(r.location||'?')+'; дата '+(r.date||'?')+' '+(r.time||'')+'\nХарактеристики: '+JSON.stringify(r.stats)+'\nНавыки: '+JSON.stringify(r.skills)+'\nИнвентарь: '+r.inventory.join(', ')+'\nЗаметки: '+r.notes.join('; '):'Снимок Universal RPG ещё не импортирован.';}
   const rpg=/^rpg\s+paste\s*\|\s*([\s\S]+)$/i.exec(s);

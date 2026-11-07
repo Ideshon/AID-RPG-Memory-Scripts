@@ -330,6 +330,7 @@ updated: 2026-11-05T10:58
 | `;mem import plot status` | Перечень сохранённых Plot-компонентов и длина. |
 | `;mem import rpg` | Справка по обмену с Universal RPG. |
 | `;mem import rpg card` | Прочитать обменную Story Card с меткой `[AID_RPG_EXPORT:1]`, если RPG её создал. |
+| `;mem import rpg calendar` | Синхронизировать дату и время Memory Engine по импортированному RPG-снимку; неподходящую для григорианского календаря дату не подменять. |
 | `;mem import rpg paste \| {JSON}` | Вставить подготовленный JSON формата обмена. |
 | `;mem import rpg status` | Просмотреть импортированный снимок (включая характеристики и инвентарь). |
 

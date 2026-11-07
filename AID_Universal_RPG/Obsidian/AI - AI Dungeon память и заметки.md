@@ -1,5 +1,8 @@
 # AI Dungeon — журнал памяти и заметки
 
+> [!warning] Журнал RPG устарел
+> Новые сюжетные факты и события храни в AID Memory Engine через `;mem fact` и `;mem event`. `:note` / `:notes` в RPG больше не управляют памятью. Старые записи можно перенести: `:aidm export` → `;mem import rpg card` → `;mem import rpg notes`. Квесты остаются в Universal RPG.
+
 > [!tip] Справочник
 > Синтаксис команд и параметры: [[AI - AI Dungeon все команды]].
 
