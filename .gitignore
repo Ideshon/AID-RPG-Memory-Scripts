@@ -1,0 +1,15 @@
+# лишние
+AI_SillyTavern/
+Readme.md
+AID_Memory_Engine/tests
+AID_Universal_RPG/tests
+
+# Временные файлы
+*.tmp
+*.log
+*.bak
+*~
+
+# Windows
+Thumbs.db
+Desktop.ini
