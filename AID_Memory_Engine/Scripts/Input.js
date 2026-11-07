@@ -9,6 +9,8 @@ function amImport(m,refresh){
     const cardId=c.id!==undefined&&c.id!==null?'id:'+c.id:'content:'+amKey(nm)+'|'+amKey(en.slice(0,80));
     if(en.startsWith(AM_CARD)||en.startsWith('[AID_RPG_EXPORT:1]')){owned++;continue;}
     if(!nm||!en){skipped++;continue;}
+    const linked=m.cardLinks[cardId];
+    if(linked&&amCardRecord(m,linked.kind,linked.key)){updated++;continue;}
     const already=!!(m.imported[cardId]||(c.id!==undefined&&m.imported[String(c.id)]));
     if(already&&!refresh)continue;
     let item=null,kind='';const cat=amKey(t);
@@ -27,10 +29,10 @@ function amImport(m,refresh){
       item=m.facts.find(x=>x.sourceCardId===cardId)||
         m.facts.find(x=>amKey(x.about)===amKey(nm)&&x.source===source);
       if(item){
-        if(refresh){item.about=nm;item.text=en;item.source=source;}
+        if(refresh){item.about=nm;item.text=amCardText(c.entry,3900);item.source=source;}
         item.triggers=amStr(c.keys,500);item.cardType=t;item.sourceCardId=cardId;
       }else if(m.facts.length<AM_CFG.maxFacts){
-        item={id:amId(m),about:nm,text:en,source,triggers:amStr(c.keys,500),cardType:t,sourceCardId:cardId};m.facts.push(item);
+        item={id:amId(m),about:nm,text:amCardText(c.entry,3900),source,triggers:amStr(c.keys,500),cardType:t,sourceCardId:cardId};m.facts.push(item);
       }
       kind='fact';
     }
@@ -153,7 +155,7 @@ function amImportCommand(m,rest){
   return 'Синтаксис: ;mem import / import refresh / import preview / import plot auto / import plot essentials | Текст / import rpg card / import rpg paste | {JSON}.';
 }
 
-/* AID Memory Engine v1.7.9 — Input commands and batch templates.
+/* AID Memory Engine v1.8.0 — Input commands and batch templates.
    Library.js contains the shared engine and read-only help pages.
    Both Library.js and Input.js MUST be replaced together when upgrading from v1.4. */
 
@@ -479,6 +481,7 @@ function amBatchCommand(m,rest){
           if(ok){delete c.skillSet[amKey(pair[1])];amDirty(shadow,'char',c.name);}
         }else if(['event','fact','plan'].includes(type)){
           const col=type==='event'?'events':type==='fact'?'facts':'plans',id=Number(name),before=shadow[col].length;
+          if(type==='fact'&&shadow.cardAdoptions[AM_CARD+'fact:'+id+']'])return 'Пакет отменён: сначала восстанови Story Card через ;mem cards restore fact '+id;
           shadow[col]=shadow[col].filter(x=>x.id!==id);ok=shadow[col].length<before;
           if(ok&&type==='event')for(const d of Object.values(shadow.days))d.events=d.events.filter(x=>x!==id);
         }else if(type==='rel'){
@@ -593,46 +596,34 @@ function amResetPreview(m,kind,owned){
   lines.push('Операция необратима через ;mem undo. Сначала сделай копию приключения.');
   return lines.join('\n');
 }
-function amCardTarget(m,c){
-  if(!c||String(c.entry||'').startsWith(AM_CARD)||String(c.entry||'').startsWith('[AID_RPG_EXPORT:1]'))return null;
-  const type=amKey(c.type||'');
-  const kind=['character','персонаж'].includes(type)?'char':['location','место','локация'].includes(type)?'place':
-    ['faction','фракция','организация'].includes(type)?'faction':'';
-  if(!kind)return null;
-  const dict=kind==='char'?m.characters:kind==='place'?m.places:m.factions;
-  const names=String(c.keys||'').split(',').concat([c.name,c.title]).filter(Boolean);
-  const matches=[...new Set(names.map(amKey).filter(key=>Object.prototype.hasOwnProperty.call(dict,key)))];
-  return matches.length===1?{kind,key:matches[0],name:dict[matches[0]].name}:null;
-}
-function amCardFingerprint(c){return JSON.stringify([c.id,c.keys,c.entry,c.type,c.name,c.title]);}
-function amCardPreviewText(v,n){const s=String(v||'').replace(/\r\n?/g,'\n');return s.length>n?s.slice(0,n)+'…':s;}
 function amCardsCommand(m,raw){
   const arg=String(raw||'').replace(/[.!?]+$/,'').trim();
-  if(!arg||/^help$/i.test(arg))return 'Карточки: ;mem cards on/off; ;mem cards audit; ;mem cards adopt INDEX [confirm]; ;mem cards extra TYPE ИМЯ [| Текст / -]; ;mem cards remove-own TYPE ИМЯ [confirm] — убрать свою дублирующую карточку; ;mem cards backups; ;mem cards backup TYPE ИМЯ; ;mem cards restore TYPE ИМЯ [confirm]. TYPE: char/place/faction. Вместо INDEX введи число после # из audit: для #1 — ;mem cards adopt 1.';
+  if(!arg||/^help$/i.test(arg))return 'СПРАВКА: после ;mem cards укажи on/off, audit, adopt INDEX [confirm], show TYPE ИМЯ, repair, link INDEX | TYPE | ИМЯ [| confirm], unlink INDEX [confirm], extra TYPE ИМЯ [| Текст / -], backups, backup TYPE ИМЯ, restore TYPE ИМЯ [confirm], remove-own TYPE ИМЯ [confirm]. TYPE: char/place/faction/fact; для fact — ID. INDEX: число после # в audit.';
   if(/^(on|off)$/i.test(arg)){m.config.cards=arg.toLowerCase()==='on';return 'Режим cards: '+arg.toLowerCase();}
   if(/^backups$/i.test(arg))return 'СОХРАНЁННЫЕ ИСХОДНЫЕ КАРТОЧКИ: '+Object.keys(m.cardAdoptions).length+'\n'+
     (Object.keys(m.cardAdoptions).map(tag=>tag+' — ;mem cards backup '+tag.slice(10,-1).replace(':',' ')).join('\n')||'Нет.');
-  const backup=/^backup\s+(char|place|faction)\s+(.+)$/i.exec(arg);
+  const backup=/^backup\s+(char|place|faction|fact)\s+(.+)$/i.exec(arg);
   if(backup){const tag=AM_CARD+backup[1].toLowerCase()+':'+amKey(backup[2])+']',saved=m.cardAdoptions[tag];
     return saved?'РЕЗЕРВНАЯ КОПИЯ '+backup[1]+' '+backup[2]+'\nТип: '+saved.original.type+'\nКлючи: '+saved.original.keys+'\nEntry:\n'+saved.original.entry:
       'Резервная копия не найдена. ;mem cards backups.';}
-  const extraEdit=/^extra\s+(char|place|faction)\s+([^|]+?)\s*\|\s*([\s\S]*)$/i.exec(String(raw||'').trim());
+  const extraEdit=/^extra\s+(char|place|faction|fact)\s+([^|]+?)\s*\|\s*([\s\S]*)$/i.exec(String(raw||'').trim());
   if(extraEdit){
     const kind=extraEdit[1].toLowerCase(),name=extraEdit[2].trim(),tag=AM_CARD+kind+':'+amKey(name)+']',saved=m.cardAdoptions[tag];
     if(!saved)return 'Переданная карточка не найдена. ;mem cards backups.';
     const previous=saved.extra||'',value=extraEdit[3].trim().replace(/\\n/g,'\n');
     if(!value)return 'Укажи текст или - для очистки дополнительных сведений.';
-    if(value.length>3900)return 'Дополнительные сведения длиннее 3900 символов. Ничего не изменено.';
+    if(value.length>3900)return 'Лимит текста: 3900. Ничего не изменено.';
     saved.extra=value==='-'?'':amCardText(value,3900);
     const spec=amCardSpec(m,kind,amKey(name));
     if(!spec||spec.entry.length>1000){saved.extra=previous;return 'Новый текст карточки длиннее 1000 символов или запись памяти недоступна. Дополнительные сведения не изменены.';}
     amDirty(m,kind,name);m.cardPreview=null;
     return 'Дополнительные сведения '+kind+' '+name+' '+(saved.extra?'сохранены.':'очищены.');
   }
-  const extraShow=/^extra\s+(char|place|faction)\s+(.+)$/i.exec(arg);
+  const extraShow=/^extra\s+(char|place|faction|fact)\s+(.+)$/i.exec(arg);
   if(extraShow){const tag=AM_CARD+extraShow[1].toLowerCase()+':'+amKey(extraShow[2])+']',saved=m.cardAdoptions[tag];
     return saved?'ДОПОЛНИТЕЛЬНЫЕ СВЕДЕНИЯ '+extraShow[1]+' '+extraShow[2]+'\n'+(saved.extra||'Нет.'):'Переданная карточка не найдена. ;mem cards backups.';}
   if(typeof storyCards==='undefined'||!Array.isArray(storyCards))return 'Список Story Cards недоступен; ничего не изменено.';
+  const maintenance=amCardMaintenanceCommand(m,arg);if(maintenance!==null)return maintenance;
   if(/^audit$/i.test(arg)){
     const rows=[];let firstIndex=null;
     for(let i=0;i<storyCards.length;i++){
@@ -656,8 +647,9 @@ function amCardsCommand(m,raw){
     if(m.cardAdoptions[spec.tag])return 'Карточка '+target.name+' уже управляется Memory Engine. ;mem cards backups.';
     if(Object.keys(m.cardAdoptions).length>=30)return 'Лимит: не более 30 переданных пользовательских Story Cards с резервными копиями. Ничего не изменено.';
     if(storyCards.some(c=>String(c.entry||'').startsWith(spec.tag)))return 'У '+target.name+' уже есть отдельная карточка Memory Engine. Сначала разреши дубликат; ручная карточка не изменена.';
-    const original={keys:String(card.keys||''),entry:String(card.entry||''),type:String(card.type||'')};
-    if(original.entry.length>3900)return 'Исходная Entry длиннее 3900 символов; безопасное сохранение и просмотр через команду недоступны. Ничего не изменено.';
+    if(storyCards.some((c,i)=>{const t=i===idx?null:amCardTarget(m,c);return t&&t.kind===target.kind&&t.key===target.key;}))return 'Несколько ручных карточек соответствуют одной записи памяти. Объедини их текст и оставь одну карточку либо исправь связи/ключи. Ничего не изменено.';
+    const original={keys:String(card.keys||''),entry:String(card.entry||''),type:String(card.type||''),title:card.title===undefined?card.name:card.title,description:card.description===undefined?card.notes:card.description};
+    if(original.entry.length>3900)return 'Entry длиннее 3900 символов. Передача отменена.';
     const extra=amCardMissingLines(original.entry,spec.entry),generated=amCardWithExtra(spec.entry,extra);
     if(generated.length>1000)return 'Будущая Story Card с сохранёнными сведениями длиннее 1000 символов ('+generated.length+'). Передача остановлена без потери текста. Сократи исходную карточку или данные памяти и повтори ;mem cards adopt '+idx+'.';
     const fingerprint=amCardFingerprint(card);
@@ -666,8 +658,8 @@ function amCardsCommand(m,raw){
       return 'ПРЕДПРОСМОТР ПЕРЕДАЧИ #'+idx+' — '+target.kind+' '+target.name+'.\n'+
         'БЫЛО ('+original.entry.length+' символов):\n'+amCardPreviewText(original.entry,1200)+'\n'+
         'СТАНЕТ ('+generated.length+' символов):\n'+amCardPreviewText(generated,1000)+'\n'+
-        'Полный прежний текст сохранится в state.aidm и будет доступен через ;mem cards backup '+target.kind+' '+target.name+'. '+
-        'Строки, которых нет в полях памяти, добавлены как дополнительные сведения. После передачи их можно изменить через ;mem cards extra '+target.kind+' '+target.name+'. Для выполнения: ;mem cards adopt '+idx+' confirm.';
+        'Исходник: ;mem cards backup '+target.kind+' '+target.name+'. '+
+        'Дополнительные строки: ;mem cards extra '+target.kind+' '+target.name+'. Для выполнения: ;mem cards adopt '+idx+' confirm.';
     }
     const preview=amObj(m.cardPreview);
     if(preview.op!=='adopt'||preview.index!==idx||preview.tag!==spec.tag||preview.fingerprint!==fingerprint||preview.generated!==generated)
@@ -675,18 +667,20 @@ function amCardsCommand(m,raw){
     if(typeof updateStoryCard!=='function')return 'updateStoryCard недоступна; ничего не изменено.';
     m.cardAdoptions[spec.tag]={original,cardId:card.id===undefined?null:card.id,extra};
     let failure='';
-    try{if(updateStoryCard(idx,original.keys||spec.keys,generated,spec.type)===false)failure='API отклонил замену';}
+    try{if(amWriteCard(idx,original.keys||spec.keys,generated,original.type,original)===false)failure='API отклонил замену';}
     catch(e){m.cardErrors++;failure=amStr(e.message,160);}
     if(failure){
       if(!String(storyCards[idx]&&storyCards[idx].entry||'').startsWith(spec.tag))delete m.cardAdoptions[spec.tag];
       else m.cardPreview=null;
       return 'Не удалось подтвердить замену: '+failure+'. '+(m.cardAdoptions[spec.tag]?'Карточка могла измениться; исходная копия сохранена.':'Карточка осталась прежней.');
     }
+    const written=storyCards.find(c=>String(c.entry||'')===generated&&(card.id==null||c.id===card.id));
+    if(!written)return 'Запись не подтверждена. Копия сохранена; ;mem cards show '+target.kind+' '+target.key+'.';
     m.cardPreview=null;
     m.cardDirty=m.cardDirty.filter(x=>x!==target.kind+'|'+target.key);
     return 'Story Card #'+idx+' передана Memory Engine: '+target.name+'. Исходные keys/entry/type сохранены; ID карточки не менялся. Восстановление: ;mem cards restore '+target.kind+' '+target.name+'.';
   }
-  const removeOwn=/^remove-own\s+(char|place|faction)\s+(.+?)(?:\s+(confirm))?$/i.exec(arg);
+  const removeOwn=/^remove-own\s+(char|place|faction|fact)\s+(.+?)(?:\s+(confirm))?$/i.exec(arg);
   if(removeOwn){
     const kind=removeOwn[1].toLowerCase(),name=removeOwn[2].trim(),key=amKey(name),tag=AM_CARD+kind+':'+key+']';
     if(m.cardAdoptions[tag])return 'Эта карточка ранее принадлежала пользователю. Восстанови её через ;mem cards restore '+kind+' '+name+'.';
@@ -707,12 +701,13 @@ function amCardsCommand(m,raw){
     m.cardPreview=null;m.cardDirty=m.cardDirty.filter(x=>x!==kind+'|'+key);
     return 'Удалена только дублирующая карточка Memory Engine. Пользовательская карточка сохранена. Выполни ;mem cards audit.';
   }
-  const tagged=/^restore\s+(char|place|faction)\s+(.+?)(?:\s+(confirm))?$/i.exec(arg);
+  const tagged=/^restore\s+(char|place|faction|fact)\s+(.+?)(?:\s+(confirm))?$/i.exec(arg);
   if(tagged){
     const kind=tagged[1].toLowerCase(),name=tagged[2].trim(),tag=AM_CARD+kind+':'+amKey(name)+']';
     const saved=m.cardAdoptions[tag];if(!saved)return 'Резервная копия для '+kind+' '+name+' не найдена. ;mem cards backups.';
     const idx=storyCards.findIndex(c=>String(c.entry||'').startsWith(tag));
     if(idx>=0&&saved.cardId!==null&&storyCards[idx].id!==saved.cardId)return 'ID управляемой карточки изменился. Копия сохранена; проверь Story Cards в интерфейсе.';
+    if(idx<0&&saved.cardId!=null&&storyCards.some(c=>c.id===saved.cardId))return 'Карточка с прежним ID существует, но её маркер изменён вручную. Восстановление остановлено, копия сохранена; ;mem cards show '+kind+' '+name;
     if(idx<0&&storyCards.some(c=>amCardKeysOverlap(c.keys,saved.original.keys)))return 'Карточка отсутствует, но её ключи уже заняты другой Story Card. Копия сохранена; проверь карточки в интерфейсе.';
     const fingerprint=idx<0?'missing':amCardFingerprint(storyCards[idx]);
     if(!tagged[3]){
@@ -725,8 +720,8 @@ function amCardsCommand(m,raw){
       return 'Карточка изменилась после предпросмотра. Повтори ;mem cards restore '+kind+' '+name+'. Ничего не изменено.';
     if(idx<0?typeof addStoryCard!=='function':typeof updateStoryCard!=='function')return 'API Story Cards недоступен; копия сохранена.';
     let failure='';
-    try{if((idx<0?addStoryCard(saved.original.keys,saved.original.entry,saved.original.type):
-      updateStoryCard(idx,saved.original.keys,saved.original.entry,saved.original.type))===false)failure='API отклонил восстановление';}
+    try{if((idx<0?addStoryCard(saved.original.keys,saved.original.entry,saved.original.type,saved.original.title,saved.original.description):
+      amWriteCard(idx,saved.original.keys,saved.original.entry,saved.original.type,saved.original))===false)failure='API отклонил восстановление';}
     catch(e){m.cardErrors++;failure=amStr(e.message,160);}
     const restored=(idx<0?storyCards:storyCards.slice(idx,idx+1)).some(c=>c&&
       c.keys===saved.original.keys&&c.entry===saved.original.entry&&c.type===saved.original.type);
@@ -789,30 +784,6 @@ function amResetCommand(m,raw){
 }
 
 /* ---------- v1.3.1: topic-based, user-readable built-in help ---------- */
-function amHelp(subject){
-  const raw=amKey(subject||'');
-  if(['transfer','перенос','экспорт памяти','копирование памяти'].includes(raw))return amTransferCommand(amInit(),'help');
-  if(['cards','card','карточки','карточка','storycards','story cards','story card'].includes(raw))return amCardsCommand(amInit(),'help');
-  if(['review','проверка памяти','подтверждение','очередь','наблюдения','accept','reject'].includes(raw))return 'AID Memory v1.7.9 — ПРОВЕРКА АВТОПАМЯТИ\nПосле сцены рассказчик предлагает записи; до подтверждения они не изменяют биографии, отношения и Story Cards.\n;mem review — вся очередь; ;mem review ID — текст и источник.\n;mem accept ID — подтвердить предложение; ;mem accept ID replace — явно заменить вручную введённое поле.\n;mem edit ID | новое значение — исправить предложение, затем ;mem accept ID.\n;mem reject ID — отклонить; ;mem review log — журнал решений.\n;mem sources char Имя — источник текущих полей.\nНепроверенные наблюдения записываются как факты ТОЛЬКО после ;mem accept ID.\nАвтоматический отчёт не перезаписывает ручные данные. Старые записи без происхождения считаются защищёнными.';
-
-  const topic=Object.prototype.hasOwnProperty.call(AM_HELP_ALIASES,raw)?AM_HELP_ALIASES[raw]:raw;
-  if(topic==='all')return 'AID Memory v1.7.9 — СПРАВКА\nОБЩИЙ УКАЗАТЕЛЬ\n;mem review / review ID / review log — очередь, источник и решения.\n;mem accept ID [replace], ;mem edit ID | значение, ;mem reject ID — управление предложениями.\n;mem sources char Имя — происхождение подтверждённых полей.\n;mem transfer help — перенос памяти между приключениями.\n'+AM_HELP_PAGES.all;
-  if(topic==='index')return 'AID Memory v1.7.9 — РАЗДЕЛЫ СПРАВКИ\n'+
-    'Первые шаги: ;mem ping, ;mem status, ;mem help start, ;mem help syntax, ;mem help all\n'+
-    'Мир: ;mem help world, ;mem help place, ;mem help faction\n'+
-    'Персонажи: ;mem help char, ;mem help skill, ;mem help rel\n'+
-    'История: ;mem help fact, ;mem help event, ;mem help day, ;mem help arc, ;mem help plan\n'+
-    'Настройка: ;mem help batch, ;mem help auto, ;mem help cards, ;mem help review\n'+
-    'Управление: ;mem help edit, ;mem help undo, ;mem help reset, ;mem help debug, ;mem help transfer\n'+
-    'По-русски: ;mem help персонажи, ;mem help карта, ;mem help отношения, ;mem help календарь, ;mem help пакет.\n'+
-    'Укажи тему после help, чтобы получить синтаксис, примеры и ограничения.';
-  if(Object.prototype.hasOwnProperty.call(AM_HELP_PAGES,topic))return 'AID Memory v1.7.9 — СПРАВКА\n'+AM_HELP_PAGES[topic];
-  return 'Неизвестный раздел справки «'+amStr(subject,70)+'».\n'+
-    'Введи ;mem help для списка тем или ;mem help all для указателя команд.';
-}
-// Interpret only a command at the beginning of a player action, even when
-// AI Dungeon wraps the text as Do, Say, or an instruction to type a command.
-// Preserve all § directives and newline boundaries in batch inputs.
 function amNormalizePlayerCommand(raw){
   let s=String(raw===undefined||raw===null?'':raw).slice(0,3950)
     .replace(/\r\n?/g,'\n').trim();
@@ -861,8 +832,8 @@ function amCommand(m,raw){
     if(!a||a==='status')return 'AID Memory debug: '+(m.config.debug?(m.config.debugFull?'full':'on'):'off')+'; последняя запись '+(m.debugTrace?'есть':'нет')+'.\n;mem debug on / full / off; ;mem debug last / context.';
     return 'Формат: ;mem debug on / full / off / status / last / context.';
   }
-  if(verb==='status')return 'AID Memory v1.7.9: '+(m.config.auto?'извлечение включено':'извлечение выключено')+'; Story Cards '+(m.config.cards?'включены':'выключены')+'.\nКалендарь: '+(m.config.calendar?'on':'off')+'; игровая дата: '+(m.config.calendar?(m.date||'?')+' '+(m.time||''):'отключена')+'; место: '+(m.place||'?')+'.\nПерсонажи '+Object.keys(m.characters).length+', места '+Object.keys(m.places).length+', фракции '+Object.keys(m.factions).length+', связи '+Object.keys(m.relations).length+', события '+m.events.length+', дни '+Object.keys(m.days).length+', арки '+Object.keys(m.arcs).length+', планы '+m.plans.length+'.\nАвтопакеты: '+m.accepted+'; без распознанного маркера: '+m.misses+'; ошибки карт: '+m.cardErrors+'; отклонённые связи родителей: '+m.validationErrors+'; источники Plot: '+Object.keys(m.plotImports||{}).length+'; снимок RPG: '+(m.rpgSnapshot?'да':'нет')+'.\nПредложения для проверки: '+m.reviewQueue.filter(x=>x.tier==='proposed').length+'; наблюдения: '+m.reviewQueue.filter(x=>x.tier==='observation').length+'.';
-  if(verb==='ping')return 'AID Memory v1.7.9: Library и Input работают; сохранено персонажей '+Object.keys(m.characters).length+', мест '+Object.keys(m.places).length+'.';
+  if(verb==='status')return 'AID Memory v1.8.0: '+(m.config.auto?'извлечение включено':'извлечение выключено')+'; Story Cards '+(m.config.cards?'включены':'выключены')+'.\nКалендарь: '+(m.config.calendar?'on':'off')+'; игровая дата: '+(m.config.calendar?(m.date||'?')+' '+(m.time||''):'отключена')+'; место: '+(m.place||'?')+'.\nПерсонажи '+Object.keys(m.characters).length+', места '+Object.keys(m.places).length+', фракции '+Object.keys(m.factions).length+', связи '+Object.keys(m.relations).length+', события '+m.events.length+', дни '+Object.keys(m.days).length+', арки '+Object.keys(m.arcs).length+', планы '+m.plans.length+'.\nАвтопакеты: '+m.accepted+'; без распознанного маркера: '+m.misses+'; ошибки карт: '+m.cardErrors+'; отклонённые связи родителей: '+m.validationErrors+'; источники Plot: '+Object.keys(m.plotImports||{}).length+'; снимок RPG: '+(m.rpgSnapshot?'да':'нет')+'.\nПредложения для проверки: '+m.reviewQueue.filter(x=>x.tier==='proposed').length+'; наблюдения: '+m.reviewQueue.filter(x=>x.tier==='observation').length+'.';
+  if(verb==='ping')return 'AID Memory v1.8.0: Library и Input работают; сохранено персонажей '+Object.keys(m.characters).length+', мест '+Object.keys(m.places).length+'.';
   if(verb==='validate')return 'ПРОВЕРКА КАРТЫ\n'+(amPlaceIssues(m).join('\n')||'Ошибок вложенности не найдено.');
   if(verb==='cards')return amCardsCommand(m,rest);
   if(verb==='auto'){rest=rest.replace(/[.!?]+$/,'');if(!/^(on|off)$/i.test(rest))return 'Формат: ;mem auto on/off';m.config.auto=rest==='on';return 'Режим auto: '+rest;}
@@ -871,15 +842,19 @@ function amCommand(m,raw){
     if(!match)return 'Формат: ;mem edit fact ID | Новый текст или ;mem edit fact ID | Новая тема | Новый текст.';
     const fact=m.facts.find(x=>x.id===Number(match[1]));
     if(!fact)return 'Факт #'+match[1]+' не найден. Проверь ;mem list fact.';
-    if(fact.sourceCardId)return 'Факт #'+fact.id+' связан с импортированной Story Card. Измени исходную карточку и выполни ;mem import refresh.';
+    if(fact.sourceCardId&&!m.cardAdoptions[AM_CARD+'fact:'+fact.id+']'])return 'Факт #'+fact.id+' связан с импортированной Story Card. Измени исходную карточку и выполни ;mem import refresh.';
     const parts=amParts(match[2]);
     if(parts.length>2)return 'Формат: ;mem edit fact ID | Новый текст или ;mem edit fact ID | Новая тема | Новый текст.';
     const about=parts.length===2?parts[0]:fact.about,text=parts.length===2?parts[1]:parts[0];
-    if(about.length<2||about.length>85||text.length<8||text.length>380)return 'Тема: 2–85 символов; текст факта: 8–380 символов. Ничего не изменено.';
+    if(about.length<2||about.length>85||text.length<8||text.length>(m.cardAdoptions[AM_CARD+'fact:'+fact.id+']']?950:380))return 'Тема: 2–85 символов; текст факта: 8–380 символов, для управляемой Custom-карточки до 950. Ничего не изменено.';
     if(m.facts.some(x=>x.id!==fact.id&&amKey(x.about)===amKey(about)&&amKey(x.text)===amKey(text)))return 'Такой факт уже существует. Ничего не изменено.';
     if(fact.about===about&&fact.text===text)return 'Факт #'+fact.id+' уже содержит этот текст.';
     if(fact.source==='rpg-import'&&!fact.rpgOriginalText)fact.rpgOriginalText=fact.text;
-    fact.about=amStr(about,85);fact.text=amStr(text,380);fact.source='user';m.undo=null;
+    const previous=Object.assign({},fact);
+    fact.about=amStr(about,85);fact.text=m.cardAdoptions[AM_CARD+'fact:'+fact.id+']']?amCardText(text.replace(/\\n/g,'\n'),950):amStr(text,380);
+    const cardSpec=m.cardAdoptions[AM_CARD+'fact:'+fact.id+']']?amCardSpec(m,'fact',String(fact.id)):null;
+    if(cardSpec&&cardSpec.entry.length>1000){Object.assign(fact,previous);return 'Полный Entry длиннее 1000 символов. Факт не изменён.';}
+    if(m.cardAdoptions[AM_CARD+'fact:'+fact.id+']'])amDirty(m,'fact',String(fact.id));fact.source='user';m.undo=null;
     return 'Факт #'+fact.id+' изменён: '+fact.about+' — '+fact.text;
   }
   if(['review','accept','edit','reject'].includes(verb))return amReviewCommand(m,verb,rest);
@@ -901,6 +876,7 @@ function amCommand(m,raw){
     if(type==='skill'){const parts=amParts(name),c=m.characters[amKey(parts[0])];
       if(c&&c.skillSet&&c.skillSet[amKey(parts[1])]){delete c.skillSet[amKey(parts[1])];ok=true;amDirty(m,'char',c.name);}
     }else if(['event','fact','plan'].includes(type)){const col=type==='event'?'events':type==='fact'?'facts':'plans',id=Number(name),old=m[col].length;
+      if(type==='fact'&&m.cardAdoptions[AM_CARD+'fact:'+id+']'])return 'Сначала восстанови Story Card: ;mem cards restore fact '+id;
       m[col]=m[col].filter(x=>x.id!==id);ok=m[col].length<old;
       if(type==='event')for(const d of Object.values(m.days))d.events=d.events.filter(x=>x!==id);
     }else if(type==='rel'){const r=/^(.+?)\s*->\s*(.+)$/.exec(name);const k=r?amKey(r[1])+'→'+amKey(r[2]):'';ok=!!m.relations[k];if(ok){amDirty(m,'char',m.relations[k].from);delete m.relations[k];}}
@@ -997,8 +973,8 @@ function amCommand(m,raw){
 // hook is skipped by another Script or AI Dungeon, a diagnostic is still shown.
 const modifier=(text)=>{
   try{
-    if(typeof AM_ENGINE_BUILD==='undefined'||AM_ENGINE_BUILD!=='1.7.9'){
-      const reason='Несовместимые вкладки Memory Engine: замени все четыре JS-файла из v1.7.9.';
+    if(typeof AM_ENGINE_BUILD==='undefined'||AM_ENGINE_BUILD!=='1.8.0'){
+      const reason='Несовместимые вкладки Memory Engine: замени все четыре JS-файла из v1.8.0.';
       if(state&&state.aidm&&typeof state.aidm==='object')state.aidm.pendingUI=reason;
       state.message='[AID Memory] '+reason;
       return {text:'[AID Memory: '+reason+']'};
@@ -1040,7 +1016,7 @@ const modifier=(text)=>{
   }catch(err){
     const detail=String(err&&err.message||err).slice(0,300);
     if(typeof console!=='undefined'&&console.log)console.log('AID Memory Input: '+detail);
-    if(state&&state.aidm)state.aidm.pendingUI='[AID Memory v1.7.9] Ошибка Input: '+detail;
+    if(state&&state.aidm)state.aidm.pendingUI='[AID Memory v1.8.0] Ошибка Input: '+detail;
     state.message='[AID Memory Input ERROR] '+detail;
     return {text:'[AID Memory: ошибка команды; не развивай сюжет.]'};
   }

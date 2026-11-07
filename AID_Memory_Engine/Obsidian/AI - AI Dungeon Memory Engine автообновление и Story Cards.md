@@ -4,9 +4,9 @@ tags:
   - aid-memory
   - automation
   - story-cards
-version: 1.7.9
+version: 1.8.0
 created: 2026-11-05T08:26
-updated: 2026-11-07T23:38
+updated: 2026-11-08T00:23
 ---
 # AI Dungeon — Memory Engine: автообновление и Story Cards
 

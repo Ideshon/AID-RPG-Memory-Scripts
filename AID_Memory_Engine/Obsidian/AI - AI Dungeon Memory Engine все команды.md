@@ -3,15 +3,15 @@ tags:
   - aidungeon
   - aid-memory
   - commands
-version: 1.7.9
+version: 1.8.0
 created: 2026-11-05T08:26
-updated: 2026-11-07T23:40
+updated: 2026-11-08T00:23
 ---
-# AI Dungeon — Memory Engine: все команды (v1.7.9)
+# AI Dungeon — Memory Engine: все команды (v1.8.0)
 
 [[AI - AI Dungeon Memory Engine оглавление]] · [[AI - AI Dungeon Memory Engine обновления]] · [[AI - AI Dungeon Memory Engine установка]] · [[AI - AI Dungeon Memory Engine устройство памяти]]
 
-> [!info] Сверено с исходным кодом команд Memory Engine v1.7.9
+> [!info] Сверено с исходным кодом команд Memory Engine v1.8.0
 > Ниже только существующие команды, а не планируемые функции. Основной префикс **`;mem`**. Псевдоним `:mem` конфликтует с Universal RPG. Команды вводятся **по одной за ход, кроме многострочной `;mem batch`**; `|` — разделитель аргументов. Используй `on/off` в нижнем регистре.
 
 > [!tip] Что на что влияет
@@ -102,12 +102,16 @@ updated: 2026-11-07T23:40
 | `;mem validate` | Проверить сохранённые связи `parent`: отсутствующие родители и циклические ссылки. Старые ошибочные записи не изменяет. |
 | `;mem auto on` / `;mem auto off` | Включить/выключить обработку JSON от рассказчика. Изначально `on`. |
 | `;mem cards on` / `;mem cards off` | Включить/выключить обновление собственных Story Cards. Изначально `on`. |
-| `;mem cards audit` | Найти ручные стандартные Story Cards, совпадающие с персонажами, местами или фракциями памяти. |
+| `;mem cards show TYPE ИМЯ` | Активная карточка, индекс, ID, тип, название, ключи и Entry. |
+| `;mem cards repair` | Вернуть исходные тип и сохранённое название существующих управляемых карточек. |
+| `;mem cards link INDEX \| TYPE \| ИМЯ` / `... \| confirm` | Связать источник с существующей записью без создания новой. Для fact укажи ID. |
+| `;mem cards unlink INDEX` / `... confirm` | Удалить только явную связь; сначала restore, если карточка управляемая. |
+| `;mem cards audit` | Найти ручные стандартные и Custom-карточки, сопоставленные с сущностями или фактами памяти. |
 | `;mem cards adopt INDEX` / `;mem cards adopt INDEX confirm` | Предпросмотр и передача конкретной ручной карточки под управление Memory Engine; отсутствующие в памяти строки сохраняются как дополнительные сведения. `INDEX` нужно заменить числом после `#` из `audit`: для `#1 char Алиса` введи `;mem cards adopt 1`, затем `;mem cards adopt 1 confirm`. |
 | `;mem cards remove-own TYPE ИМЯ` / `... confirm` | Удалить только свою дублирующую карточку после предпросмотра, если ручная карточка уже существует. |
 | `;mem cards extra TYPE ИМЯ` / `;mem cards extra TYPE ИМЯ \| Текст` / `\| -` | Показать, заменить или очистить дополнительные строки, перенесённые из ручной Story Card. |
 | `;mem cards backups` / `;mem cards backup TYPE ИМЯ` | Список переданных карточек и полная исходная копия одной карточки. |
-| `;mem cards restore TYPE ИМЯ` / `... confirm` | Предпросмотр и восстановление исходной ручной карточки. `TYPE`: `char`, `place`, `faction`. |
+| `;mem cards restore TYPE ИМЯ` / `... confirm` | Предпросмотр и восстановление исходной ручной карточки. `TYPE`: `char`, `place`, `faction`, `fact`; для `fact` укажи ID. |
 | `;mem import` | Импортировать Character/Location/Faction как сущности, остальные типы (Custom, Class, Race, Item и т. д.) — как факты; исходные Story Cards остаются. |
 | `;mem list fact` / `;mem show fact ID` | Просмотр фактов и импортированных карточек нестандартных типов. |
 | `;mem undo` | Отменить последний подтверждённый или ручной `batch`-пакет, если доступен снимок. Story Cards и сброс не откатываются. |
@@ -360,3 +364,5 @@ updated: 2026-11-07T23:40
 ### Приём экспорта из Universal RPG v2.28
 
 После `:aidm export` в Universal RPG запусти `;mem import rpg card`, затем `;mem import rpg status`. С версии 1.6.1 подкоманды импорта понимают также точку, которую режим Do иногда добавляет в конце (`;mem import rpg card.`). Импорт не удаляет исходную Custom Story Card и не меняет параметры RPG.
+
+Для переданной Custom-карточки `;mem edit fact ID | Текст` обновляет её Entry; допустимы до 950 символов и буквальное `\n` для новой строки. Общий Entry — до 1000 символов. Подробности: [[AI - AI Dungeon Memory Engine управление Story Cards]].
