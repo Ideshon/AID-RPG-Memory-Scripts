@@ -4,9 +4,9 @@ tags:
   - aid-memory
   - chronology
   - calendar
-version: 1.7.4
+version: 1.7.9
 created: 2026-11-05T08:26
-updated: 2026-11-07
+updated: 2026-11-07T23:38
 ---
 # AI Dungeon — Memory Engine: летопись и календарь
 

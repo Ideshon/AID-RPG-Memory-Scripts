@@ -1,7 +1,7 @@
-/* AID Memory Engine v1.7.4 — Library (independent Adventure Script).
+/* AID Memory Engine v1.7.9 — Library (independent Adventure Script).
    Uses ONLY public AI Dungeon Scripting API: state, history, storyCards,
    addStoryCard, updateStoryCard, info. Does not modify state.memory. */
-const AM_ENGINE_BUILD='1.7.4';
+const AM_ENGINE_BUILD='1.7.9';
 const AM_CFG={contextChars:3200, reportChars:4800, maxChars:75, maxPlaces:85,
   maxFactions:35, maxRelations:130, maxEvents:250, maxDays:75, maxArcs:35,
   maxFacts:110, maxPlans:80, maxAutoCardsPerTurn:8};
@@ -41,6 +41,16 @@ function amPlaceIssues(m){
   }return warnings;
 }
 function amStr(v,n){return String(v===undefined||v===null?'':v).replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,n||500);}
+function amCardText(v,n){return String(v===undefined||v===null?'':v).replace(/\r\n?/g,'\n').split('\n').map(line=>line.replace(/\s+/g,' ').trim()).filter(Boolean).join('\n').slice(0,n||500);}
+function amCardMissingLines(source,known){
+  const normalized=s=>String(s||'').replace(/\s+/g,' ').trim().toLocaleLowerCase().replace(/ё/g,'е');
+  const present=normalized(known);
+  return amCardText(source,3900).split('\n').filter(line=>line&&!present.includes(normalized(line))).join('\n');
+}
+function amCardWithExtra(entry,extra){
+  const missing=amCardMissingLines(extra,entry);
+  return entry+(missing?'\nДополнительные сведения из исходной карточки:\n'+missing:'');
+}
 function amKey(s){return amStr(s,110).toLocaleLowerCase().replace(/ё/g,'е');}
 function amArr(o){return Array.isArray(o)?o:[];}
 function amObj(o){return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}
@@ -57,7 +67,7 @@ function amBlankState(){return {version:1,config:{auto:true,cards:true,calendar:
   facts:[],events:[],days:{},months:{},arcs:{},plans:[],nextId:1,
   recent:[],lastInput:'',pendingUI:null,misses:0,accepted:0,cardErrors:0,
   plotImports:{},rpgSnapshot:null,
-  lastSignature:'',skipAutoTurn:false,undo:null,cardDirty:[],imported:{},
+  lastSignature:'',skipAutoTurn:false,undo:null,cardDirty:[],imported:{},cardAdoptions:{},cardPreview:null,
   reviewQueue:[],reviewHistory:[],reviewSeen:[],reviewNextId:1,provenance:{},debugTrace:null};}
 function amResetState(m){
   // Preserve the reference used by the Input modifier and its subsequent receipt.
@@ -72,7 +82,7 @@ function amInit(){
   }
   if(!state.aidm||typeof state.aidm!=='object'||Array.isArray(state.aidm))state.aidm=amBlankState();
   const m=state.aidm;
-  for(const x of ['characters','places','factions','relations','days','months','arcs','imported','plotImports','provenance'])m[x]=amObj(m[x]);
+  for(const x of ['characters','places','factions','relations','days','months','arcs','imported','plotImports','provenance','cardAdoptions'])m[x]=amObj(m[x]);
   for(const x of ['facts','events','plans','recent','cardDirty','reviewQueue','reviewHistory','reviewSeen'])m[x]=amArr(m[x]);
   m.config=amObj(m.config);
   if(typeof m.config.auto!=='boolean')m.config.auto=true;
@@ -262,6 +272,28 @@ function amPriorityEvents(m,query){
     (tokens.some(t=>amKey(e.text).includes(t))?14:0)+Math.max(0,6-(lastId-e.id)/7)}))
     .sort((a,b)=>b.score-a.score||b.e.id-a.e.id).slice(0,4).map(x=>x.e);
 }
+function amCardSpec(m,type,key){
+  const item=(type==='char'?m.characters:type==='place'?m.places:m.factions)[key];if(!item)return null;
+  let details='';
+  if(type==='char'){
+    details=[item.bio,item.traits&&'Характер: '+item.traits,item.appearance&&'Внешность: '+item.appearance,
+      item.skills&&'Навыки (описание): '+item.skills,amSkills(item)&&'Навыки по отдельности: '+amSkills(item),item.occupation&&'Роль: '+item.occupation,item.at&&'Где находится: '+item.at].filter(Boolean).join('\n');
+    const ties=Object.values(m.relations).filter(x=>amKey(x.from)===key).slice(0,4).map(x=>'К '+x.to+': '+amRelText(x,160));
+    if(ties.length)details+='\nОтношения: '+ties.join('; ');
+  }else if(type==='place')details=[item.kind&&'Тип: '+item.kind,item.parent&&'Входит в: '+item.parent,item.description,item.status&&'Состояние: '+item.status].filter(Boolean).join('\n');
+  else details=[item.description,item.territory&&'Территория: '+item.territory,item.goal&&'Цель: '+item.goal,item.status&&'Состояние: '+item.status].filter(Boolean).join('\n');
+  if(!details.trim())return null;
+  const tag=AM_CARD+type+':'+key+']';
+  const adopted=amObj(amObj(m.cardAdoptions)[tag]);
+  const entry=amCardWithExtra(tag+'\n'+amCardText(details,1100),adopted.extra);
+  return {tag,keys:amObj(adopted.original).keys||item.name,entry,type:type==='char'?'Character':type==='place'?'Location':'Faction'};
+}
+function amCardKeyMatches(keys,name){
+  return String(keys||'').split(',').some(k=>amKey(k)===amKey(name));
+}
+function amCardKeysOverlap(left,right){
+  return String(right||'').split(',').some(key=>key.trim()&&amCardKeyMatches(left,key.trim()));
+}
 function amCards(m){
   if(!m.config.cards||typeof storyCards==='undefined'||!Array.isArray(storyCards)||typeof addStoryCard!=='function')return;
   let done=0;const attempted=new Set();
@@ -270,21 +302,15 @@ function amCards(m){
     if(attempted.has(task)){m.cardDirty.push(task);break;}
     attempted.add(task);
     const [type,k]=task.split('|');
-    const item=(type==='char'?m.characters:type==='place'?m.places:m.factions)[k];if(!item)continue;
-    const tag=AM_CARD+type+':'+k+']';
-    let details='';
-    if(type==='char'){
-      details=[item.bio,item.traits&&'Характер: '+item.traits,item.appearance&&'Внешность: '+item.appearance,
-        item.skills&&'Навыки (описание): '+item.skills,amSkills(item)&&'Навыки по отдельности: '+amSkills(item),item.occupation&&'Роль: '+item.occupation,item.at&&'Где находится: '+item.at].filter(Boolean).join('\n');
-      const ties=Object.values(m.relations).filter(x=>amKey(x.from)===k).slice(0,4).map(x=>'К '+x.to+': '+amRelText(x,160));
-      if(ties.length)details+='\nОтношения: '+ties.join('; ');
-    }else if(type==='place')details=[item.kind&&'Тип: '+item.kind,item.parent&&'Входит в: '+item.parent,item.description,item.status&&'Состояние: '+item.status].filter(Boolean).join('\n');
-    else details=[item.description,item.territory&&'Территория: '+item.territory,item.goal&&'Цель: '+item.goal,item.status&&'Состояние: '+item.status].filter(Boolean).join('\n');
-    if(!details.trim())continue;
-    const entry=tag+'\n'+amStr(details,1100),keys=item.name;let idx=storyCards.findIndex(c=>String(c.entry||'').startsWith(tag));
+    const spec=amCardSpec(m,type,k);if(!spec)continue;
+    const idx=storyCards.findIndex(c=>String(c.entry||'').startsWith(spec.tag));
+    if(idx<0&&m.cardAdoptions[spec.tag])continue; // Preserve the backup for explicit recovery.
     try{
-      if(idx>=0&&typeof updateStoryCard==='function')updateStoryCard(idx,keys,entry,type==='char'?'Character':type==='place'?'Location':'Faction');
-      else if(!storyCards.some(c=>amKey(c.keys)===amKey(keys)))addStoryCard(keys,entry,type==='char'?'Character':type==='place'?'Location':'Faction');
+      let result;
+      if(idx>=0){if(typeof updateStoryCard!=='function')throw Error('updateStoryCard недоступна');
+        result=updateStoryCard(idx,spec.keys,spec.entry,spec.type);}
+      else if(!storyCards.some(c=>amCardKeyMatches(c.keys,spec.keys)))result=addStoryCard(spec.keys,spec.entry,spec.type);
+      if(result===false)throw Error('Story Card API отклонил изменение');
       // Conflicting human-authored Story Cards are deliberately NOT overwritten.
     }catch(err){
       m.cardErrors++;
@@ -825,7 +851,7 @@ const AM_HELP_PAGES={
   "plan": "ПЛАНЫ И КАЛЕНДАРЬ\n;mem plan YYYY-MM-DD | Название | Примечание | yearly (необязательно)\nПример: ;mem plan 2016-01-22 | Собеседование | Встреча с директором\nЕжегодно: ;mem plan 2016-05-01 | День рождения | Поздравить Алису | yearly\n;mem calendar — даты и ID планов; ;mem day — планы текущего дня рядом с событиями.\n;mem delete plan ID — удалить по числовому ID, который виден при создании и в calendar.\nПлан ≠ произошедшее событие. Скрипт напоминает о планах в контексте, но не исполняет их автоматически.\nДля исправления неверной записи обычно удаляют план по ID и создают новый.\nСм. ;mem help event и ;mem help day.",
   "batch": "ПАКЕТНОЕ ЗАПОЛНЕНИЕ (одно действие)\nРекомендуемый формат — те же команды, что и по одной:\n;mem batch\n§;mem char Алиса | bio=Начинающая дизайнер | traits=Упорная\n§;mem skill Алиса | Рисование | высокий | Делает эскизы\n§;mem place Строй-Арт | kind=здание | description=Офис компании\n§;mem rel Алиса -> Дана | view=Уважение | trust=40\n§:apply\nКаждая строка — почти неизменённая одиночная команда; добавь перед ней § для надёжности в режиме Do. Последняя строка обязательно §:apply. Поддерживаются char, skill, place, faction, rel, arc, world, date, here, fact, event, summary, plan, delete.\nШаблоны: ;mem batch template char / skill / rel / place / faction / world / fact / event / day / arc / plan / delete / all.\nСтарый формат §bio=... поддерживается; шаблоны: ;mem batch template legacy char / place / faction / arc / all.\nПакет применяется целиком или не применяется вовсе; максимум 3950 символов и 55 развёрнутых полей. Родитель и дочерняя локация могут создаваться в одном пакете. Отмена: ;mem undo (Story Cards отдельно не откатываются).\nДопускаются строки без §, если редактор сохраняет переносы; вариант § надёжнее.",
   "auto": "АВТОМАТИЧЕСКОЕ ЗАПОМИНАНИЕ\n;mem auto on — включить обработку модельных JSON-отчётов (по умолчанию включено).\n;mem auto off — не записывать новые данные из JSON-отчётов; ручные команды работают.\nПри включении Context просит рассказчика добавлять [[AIDM_UPDATE]]{JSON}[[/AIDM_UPDATE]].\nOutput скрывает маркер от игрока, проверяет JSON и добавляет предложения в ;mem review; без подтверждения игрока сведения не считаются фактами.\n;mem pending — сведения об успехах/пропусках; ;mem recent — сырой текст сцен.\nАвтозапись может ошибаться и не является независимой проверкой истины.\nДля карточек: ;mem help cards; для диагностики: ;mem help debug.",
-  "import": "ИМПОРТ ИСТОЧНИКОВ v1.7.4\n;mem import — добавить новые Story Cards и доступные через API Plot Essentials/Author’s Note.\n;mem import preview — количество доступных Story Cards и полей Plot, без изменений.\n;mem import refresh — сверить ранее импортированные Custom/Item/Lore; обновить их текст, ключи и тип. У стандартных Character/Location/Faction уже изменённые вручную поля не перезаписываются.\n;mem list fact и ;mem show fact ID — оригинальный Custom-тип и все ключи-триггеры.\n;mem import plot — варианты; ;mem import plot auto — взять доступные state.memory.context/authorsNote (эти поля могли быть изменены другим скриптом).\n;mem import plot summary | Текст — вставить Story Summary вручную; допустимы essentials, authorsnote, instructions.\n;mem import plot status — посмотреть, какие Plot-источники сохранены. AI Instructions/Story Summary API не выдаёт отдельными полями.\n;mem import rpg — протокол; ;mem import rpg card — поиск [AID_RPG_EXPORT:1] Story Card; ;mem import rpg paste | {JSON} — принять экспорт вручную; ;mem import rpg status — посмотреть снимок.\nUniversal RPG хранит свой state отдельно: без его экспорта автоматической синхронизации нет.",
+  "import": "ИМПОРТ ИСТОЧНИКОВ v1.7.9\n;mem import — добавить новые Story Cards и доступные через API Plot Essentials/Author’s Note.\n;mem import preview — количество доступных Story Cards и полей Plot, без изменений.\n;mem import refresh — сверить ранее импортированные Custom/Item/Lore; обновить их название, текст, ключи и тип. У стандартных Character/Location/Faction уже изменённые вручную поля не перезаписываются.\n;mem list fact и ;mem show fact ID — оригинальный Custom-тип и все ключи-триггеры.\n;mem import plot — варианты; ;mem import plot auto — взять доступные state.memory.context/authorsNote (эти поля могли быть изменены другим скриптом).\n;mem import plot summary | Текст — вставить Story Summary вручную; допустимы essentials, authorsnote, instructions.\n;mem import plot status — посмотреть, какие Plot-источники сохранены. AI Instructions/Story Summary API не выдаёт отдельными полями.\n;mem import rpg — протокол; ;mem import rpg card — поиск [AID_RPG_EXPORT:1] Story Card; ;mem import rpg paste | {JSON} — принять экспорт вручную; ;mem import rpg status — посмотреть снимок.\nUniversal RPG хранит свой state отдельно: без его экспорта автоматической синхронизации нет.",
   "cards": "STORY CARDS И ИМПОРТ\n;mem cards on/off — включить или отключить обновление собственных Story Cards (обычно on).\n;mem import — импортировать Character/Location/Faction в соответствующие разделы, а Custom/Class/Race/другие типы — как факты.\nНеизвестные типы Story Cards (Custom, Class, Race, Item и т. п.) сохраняются как именованные факты. Проверка: ;mem list fact и ;mem show fact ID.\nПри импорте нестандартных карточек сохраняются их type и все keys (показываются в ;mem show fact ID). Полный список способов: ;mem help import.\nИмпорт НЕ удаляет исходные карточки и НЕ превращает произвольный текст отношений в направленные связи.\nСкрипт помечает свои карточки [AIDMEM:1:...] и не перезаписывает чужие карточки с теми же ключами.\nЗа один Output выполняется до 8 попыток обработки изменённых карточек; это не гарантия мгновенного обновления.\nПри ;mem undo карточки автоматически не откатываются, их нужно проверить отдельно.\nОтдельного визуального интерфейса Banshee здесь нет. См. ;mem help auto и ;mem help undo.",
   "edit": "ПОИСК ПО ТИПАМ, ПРОСМОТР И УДАЛЕНИЕ\n;mem list char (или place, faction, rel, arc, fact) — краткие списки поддерживаемых типов.\n;mem show char/place/faction/arc Название — данные конкретной записи.\n;mem show rel А -> Б — направленное отношение. Для навыков: ;mem skills Имя.\n;mem delete char/place/faction/arc Название — удалить запись.\n;mem delete rel А -> Б — удалить одно направление.\n;mem delete skill Персонаж | Навык — удалить описательный навык.\n;mem delete event/fact/plan ID — удалить запись по числовому ID.\nУдаление персонажа убирает его отношения; место с дочерними локациями удалить нельзя.\nЧужие Story Cards не удаляются автоматически; undo НЕ отменяет отдельную команду delete.\nНет универсального ;mem search, ;mem export, ;mem clear. Факты доступны через ;mem list fact и ;mem show fact ID.",
   "undo": "ОТКАТ И ИСПРАВЛЕНИЕ ОШИБОК\n;mem undo — откатить последний доступный автопакет или завершённый batch.\nЭто НЕ история всех изменений: после обычной прямой команды откат может стать недоступен.\nОткат возвращает state.aidm, но НЕ синхронизированные Story Cards.\nДля конкретной ошибки лучше исправить поле: ;mem char Имя | traits=Исправленное описание.\nДля неверного события: ;mem delete event ID; для плана: ;mem delete plan ID.\nДля проверки: ;mem status, ;mem validate, ;mem map и ;mem timeline.\nПеред массовыми изменениями желательно сохранить копию приключения, если это позволяет интерфейс.",

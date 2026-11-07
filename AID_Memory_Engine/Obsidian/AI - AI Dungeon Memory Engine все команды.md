@@ -3,15 +3,15 @@ tags:
   - aidungeon
   - aid-memory
   - commands
-version: 1.7.4
+version: 1.7.9
 created: 2026-11-05T08:26
-updated: 2026-11-07
+updated: 2026-11-07T23:40
 ---
-# AI Dungeon — Memory Engine: все команды (v1.7.0)
+# AI Dungeon — Memory Engine: все команды (v1.7.9)
 
 [[AI - AI Dungeon Memory Engine оглавление]] · [[AI - AI Dungeon Memory Engine обновления]] · [[AI - AI Dungeon Memory Engine установка]] · [[AI - AI Dungeon Memory Engine устройство памяти]]
 
-> [!info] Проверено по исходному коду `amCommand` и вспомогательным обработчикам v1.7.0
+> [!info] Сверено с исходным кодом команд Memory Engine v1.7.9
 > Ниже только существующие команды, а не планируемые функции. Основной префикс **`;mem`**. Псевдоним `:mem` конфликтует с Universal RPG. Команды вводятся **по одной за ход, кроме многострочной `;mem batch`**; `|` — разделитель аргументов. Используй `on/off` в нижнем регистре.
 
 > [!tip] Что на что влияет
@@ -102,6 +102,12 @@ updated: 2026-11-07
 | `;mem validate` | Проверить сохранённые связи `parent`: отсутствующие родители и циклические ссылки. Старые ошибочные записи не изменяет. |
 | `;mem auto on` / `;mem auto off` | Включить/выключить обработку JSON от рассказчика. Изначально `on`. |
 | `;mem cards on` / `;mem cards off` | Включить/выключить обновление собственных Story Cards. Изначально `on`. |
+| `;mem cards audit` | Найти ручные стандартные Story Cards, совпадающие с персонажами, местами или фракциями памяти. |
+| `;mem cards adopt INDEX` / `;mem cards adopt INDEX confirm` | Предпросмотр и передача конкретной ручной карточки под управление Memory Engine; отсутствующие в памяти строки сохраняются как дополнительные сведения. `INDEX` нужно заменить числом после `#` из `audit`: для `#1 char Алиса` введи `;mem cards adopt 1`, затем `;mem cards adopt 1 confirm`. |
+| `;mem cards remove-own TYPE ИМЯ` / `... confirm` | Удалить только свою дублирующую карточку после предпросмотра, если ручная карточка уже существует. |
+| `;mem cards extra TYPE ИМЯ` / `;mem cards extra TYPE ИМЯ \| Текст` / `\| -` | Показать, заменить или очистить дополнительные строки, перенесённые из ручной Story Card. |
+| `;mem cards backups` / `;mem cards backup TYPE ИМЯ` | Список переданных карточек и полная исходная копия одной карточки. |
+| `;mem cards restore TYPE ИМЯ` / `... confirm` | Предпросмотр и восстановление исходной ручной карточки. `TYPE`: `char`, `place`, `faction`. |
 | `;mem import` | Импортировать Character/Location/Faction как сущности, остальные типы (Custom, Class, Race, Item и т. д.) — как факты; исходные Story Cards остаются. |
 | `;mem list fact` / `;mem show fact ID` | Просмотр фактов и импортированных карточек нестандартных типов. |
 | `;mem undo` | Отменить последний подтверждённый или ручной `batch`-пакет, если доступен снимок. Story Cards и сброс не откатываются. |
@@ -166,7 +172,7 @@ updated: 2026-11-07
 
 Можно скопировать обычную строку `;mem char ...` в пакет, лишь добавив `§`. Разрешены также `world`, `date`, `here`, `faction`, `fact`, `event`, `summary`, `arc`, `plan` и `delete`. `status`, `map`, `list`, `auto`, `import` и другие команды чтения/режимов в пакет не входят. При сохранении переносов строк допустим вариант без `§` с завершающим `;mem apply`, но в AI Dungeon надёжнее `§:apply`. Максимум **3950 символов и 55 развёрнутых полей**.
 
-Подробные шаблоны по всем категориям, ограничения, совместимость и откат: **[[AI - AI Dungeon Memory Engine пакетное заполнение]]**.
+Подробные шаблоны по всем категориям, ограничения, совместимость и откат: **[[AI - AI Dungeon Memory Engine пакетное заполнение]]**. Перенос ручных карточек: [[AI - AI Dungeon Memory Engine управление Story Cards]].
 
 ## Мир, карта и фракции
 
@@ -326,7 +332,7 @@ updated: 2026-11-07
 |---|---|
 | `;mem import preview` | Доступные Story Cards и поля Plot, без сохранения. |
 | `;mem import` | Новые Story Cards (включая Custom) + Plot Essentials/Author's Note, если доступны через `state.memory`. |
-| `;mem import refresh` | Перечитать текст/ключи нестандартных карточек, которые уже импортировались; ручные поля стандартных карточек защищены. |
+| `;mem import refresh` | Перечитать название, текст, ключи и тип ранее импортированных нестандартных карточек; ID связанного факта сохраняется. Ручные поля стандартных карточек защищены. |
 | `;mem import plot` | Инструкция импорта Plot. |
 | `;mem import plot auto` | Копировать доступные Plot Essentials (`state.memory.context`) и Author's Note (`authorsNote`). |
 | `;mem import plot essentials \| Текст` | Внести скопированные Plot Essentials. Аналогично `summary`, `authorsnote`, `instructions`. Символ `\|` в таблице означает разделитель полей `|` при вводе, **без обратной косой черты**. |
